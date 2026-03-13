@@ -1,0 +1,1458 @@
+-- UI Library | Apple-Style | discord.gg/notrufhamburg
+-- Full custom UI library for Roblox, loadstring-compatible
+-- Components: Window, Button, Toggle, Dropdown, Colorpicker, Text, Label, Slider
+
+local AppleUI = {}
+AppleUI.__index = AppleUI
+
+---------------------------------------------------------------------
+-- SERVICES
+---------------------------------------------------------------------
+local Players        = game:GetService("Players")
+local TweenService   = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService     = game:GetService("RunService")
+
+local Player   = Players.LocalPlayer
+local Mouse    = Player:GetMouse()
+
+---------------------------------------------------------------------
+-- DESIGN TOKENS  (Apple-inspired grey palette)
+---------------------------------------------------------------------
+local Tokens = {
+    BgPrimary       = Color3.fromRGB(30, 30, 30),
+    BgSecondary     = Color3.fromRGB(38, 38, 38),
+    BgTertiary      = Color3.fromRGB(48, 48, 48),
+    BgHover         = Color3.fromRGB(58, 58, 58),
+    BgActive        = Color3.fromRGB(68, 68, 68),
+
+    TextPrimary     = Color3.fromRGB(230, 230, 230),
+    TextSecondary   = Color3.fromRGB(160, 160, 160),
+    TextMuted       = Color3.fromRGB(110, 110, 110),
+
+    Accent          = Color3.fromRGB(0, 122, 255),
+    AccentHover     = Color3.fromRGB(30, 144, 255),
+
+    Border          = Color3.fromRGB(60, 60, 60),
+    BorderLight     = Color3.fromRGB(75, 75, 75),
+
+    TrafficClose    = Color3.fromRGB(255, 95, 87),
+    TrafficMinimize = Color3.fromRGB(255, 189, 46),
+    TrafficMaximize = Color3.fromRGB(39, 201, 63),
+
+    CornerRadius    = UDim.new(0, 10),
+    CornerSmall     = UDim.new(0, 6),
+    CornerPill      = UDim.new(0, 99),
+
+    FontFamily      = Enum.Font.GothamMedium,
+    FontBold        = Enum.Font.GothamBold,
+    FontLight       = Enum.Font.Gotham,
+    FontSizeTitle   = 15,
+    FontSizeBody    = 13,
+    FontSizeSmall   = 11,
+
+    ShadowTransparency = 0.65,
+
+    TweenSpeed      = 0.25,
+    TweenEasing     = Enum.EasingStyle.Quint,
+}
+
+---------------------------------------------------------------------
+-- UTILITY HELPERS
+---------------------------------------------------------------------
+local Util = {}
+
+function Util.create(className: string, props: {[string]: any}, children: {Instance}?)
+    local inst = Instance.new(className)
+    for k, v in pairs(props) do
+        if k ~= "Parent" then
+            (inst :: any)[k] = v
+        end
+    end
+    if children then
+        for _, child in ipairs(children) do
+            child.Parent = inst
+        end
+    end
+    if props.Parent then
+        inst.Parent = props.Parent
+    end
+    return inst
+end
+
+function Util.tween(obj: Instance, tweenInfo: TweenInfo, goals: {[string]: any})
+    local t = TweenService:Create(obj, tweenInfo, goals)
+    t:Play()
+    return t
+end
+
+function Util.quickTween(obj: Instance, duration: number, goals: {[string]: any})
+    return Util.tween(obj, TweenInfo.new(duration, Tokens.TweenEasing, Enum.EasingDirection.Out), goals)
+end
+
+function Util.addCorner(parent: Instance, radius: UDim?): UICorner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = radius or Tokens.CornerRadius
+    corner.Parent = parent
+    return corner
+end
+
+function Util.addStroke(parent: Instance, color: Color3?, thickness: number?): UIStroke
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Tokens.Border
+    stroke.Thickness = thickness or 1
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = parent
+    return stroke
+end
+
+function Util.addPadding(parent: Instance, top: number?, left: number?, bottom: number?, right: number?): UIPadding
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop    = UDim.new(0, top or 8)
+    pad.PaddingLeft   = UDim.new(0, left or 8)
+    pad.PaddingBottom = UDim.new(0, bottom or 8)
+    pad.PaddingRight  = UDim.new(0, right or 8)
+    pad.Parent = parent
+    return pad
+end
+
+function Util.addShadow(parent: GuiObject)
+    local shadow = Util.create("ImageLabel", {
+        Name = "Shadow",
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://5554236805",
+        ImageColor3 = Color3.fromRGB(0, 0, 0),
+        ImageTransparency = Tokens.ShadowTransparency,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(23, 23, 277, 277),
+        Size = UDim2.new(1, 30, 1, 30),
+        Position = UDim2.new(0, -15, 0, -15),
+        ZIndex = parent.ZIndex - 1,
+        Parent = parent,
+    })
+    return shadow
+end
+
+function Util.addListLayout(parent: Instance, padding: number?, direction: Enum.FillDirection?)
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, padding or 6)
+    layout.FillDirection = direction or Enum.FillDirection.Vertical
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = parent
+    return layout
+end
+
+function Util.ripple(button: GuiObject, x: number, y: number)
+    local circle = Util.create("Frame", {
+        Name = "Ripple",
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.85,
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0, x, 0, y),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        ZIndex = button.ZIndex + 5,
+        Parent = button,
+    })
+    Util.addCorner(circle, UDim.new(1, 0))
+    local maxSize = math.max(button.AbsoluteSize.X, button.AbsoluteSize.Y) * 2.5
+    Util.quickTween(circle, 0.45, {
+        Size = UDim2.new(0, maxSize, 0, maxSize),
+        BackgroundTransparency = 1,
+    })
+    task.delay(0.5, function()
+        circle:Destroy()
+    end)
+end
+
+function Util.clamp01(v: number): number
+    return math.clamp(v, 0, 1)
+end
+
+function Util.lerpColor(a: Color3, b: Color3, t: number): Color3
+    t = Util.clamp01(t)
+    return Color3.new(
+        a.R + (b.R - a.R) * t,
+        a.G + (b.G - a.G) * t,
+        a.B + (b.B - a.B) * t
+    )
+end
+
+function Util.hexToColor3(hex: string): Color3
+    hex = hex:gsub("#", "")
+    return Color3.fromRGB(
+        tonumber(hex:sub(1, 2), 16) or 0,
+        tonumber(hex:sub(3, 4), 16) or 0,
+        tonumber(hex:sub(5, 6), 16) or 0
+    )
+end
+
+function Util.color3ToHex(c: Color3): string
+    return string.format("#%02X%02X%02X",
+        math.floor(c.R * 255 + 0.5),
+        math.floor(c.G * 255 + 0.5),
+        math.floor(c.B * 255 + 0.5)
+    )
+end
+
+---------------------------------------------------------------------
+-- DRAGGABLE MIXIN
+---------------------------------------------------------------------
+function Util.makeDraggable(topbar: GuiObject, mainFrame: GuiObject)
+    local dragging = false
+    local dragStart: Vector3
+    local startPos: UDim2
+
+    topbar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            Util.quickTween(mainFrame, 0.08, {
+                Position = UDim2.new(
+                    startPos.X.Scale, startPos.X.Offset + delta.X,
+                    startPos.Y.Scale, startPos.Y.Offset + delta.Y
+                ),
+            })
+        end
+    end)
+end
+
+---------------------------------------------------------------------
+-- SCREEN GUI SETUP
+---------------------------------------------------------------------
+function AppleUI.new(config: {[string]: any}?)
+    config = config or {}
+    local self = setmetatable({}, AppleUI)
+
+    self._config = {
+        Title       = config.Title or "Apple UI",
+        Size        = config.Size or UDim2.new(0, 520, 0, 380),
+        MinSize     = config.MinSize or Vector2.new(400, 300),
+        Theme       = config.Theme or "Dark",
+        LoadAnim    = if config.LoadAnim ~= nil then config.LoadAnim else true,
+    }
+    self._tabs       = {}
+    self._activeTab  = nil
+    self._connections = {}
+    self._destroyed  = false
+
+    -- ScreenGui
+    self._screenGui = Util.create("ScreenGui", {
+        Name = "AppleUILib",
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        Parent = Player:WaitForChild("PlayerGui"),
+    })
+
+    -- Main container
+    self._main = Util.create("Frame", {
+        Name = "MainWindow",
+        BackgroundColor3 = Tokens.BgPrimary,
+        Size = self._config.Size,
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        ClipsDescendants = true,
+        Parent = self._screenGui,
+    })
+    Util.addCorner(self._main, Tokens.CornerRadius)
+    Util.addStroke(self._main, Tokens.Border, 1)
+    Util.addShadow(self._main)
+
+    -- Build internal layout
+    self:_buildTopbar()
+    self:_buildSidebar()
+    self:_buildContentArea()
+
+    -- Draggable
+    Util.makeDraggable(self._topbar, self._main)
+
+    -- Load-in animation
+    if self._config.LoadAnim then
+        self:_playLoadAnimation()
+    end
+
+    return self
+end
+
+---------------------------------------------------------------------
+-- TOPBAR (Title bar + traffic-light buttons)
+---------------------------------------------------------------------
+function AppleUI:_buildTopbar()
+    self._topbar = Util.create("Frame", {
+        Name = "Topbar",
+        BackgroundColor3 = Tokens.BgSecondary,
+        Size = UDim2.new(1, 0, 0, 38),
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Parent = self._main,
+    })
+    -- Only round the TOP corners — use a clip frame trick to avoid overriding
+    local topCornerClip = Util.create("Frame", {
+        Name = "TopCornerClip",
+        BackgroundColor3 = Tokens.BgSecondary,
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 1, -20),
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Parent = self._topbar,
+    })
+    Util.addCorner(self._topbar, Tokens.CornerRadius)
+
+    -- Bottom border line
+    Util.create("Frame", {
+        Name = "TopbarBorder",
+        BackgroundColor3 = Tokens.Border,
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 1, -1),
+        BorderSizePixel = 0,
+        ZIndex = 6,
+        Parent = self._topbar,
+    })
+
+    -- Title
+    self._titleLabel = Util.create("TextLabel", {
+        Name = "Title",
+        Text = self._config.Title,
+        Font = Tokens.FontBold,
+        TextSize = Tokens.FontSizeTitle,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -160, 1, 0),
+        Position = UDim2.new(0.5, 0, 0, 0),
+        AnchorPoint = Vector2.new(0.5, 0),
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = 7,
+        Parent = self._topbar,
+    })
+
+    -- Traffic-light buttons container
+    local trafficContainer = Util.create("Frame", {
+        Name = "TrafficLights",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 70, 0, 20),
+        Position = UDim2.new(0, 14, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        ZIndex = 8,
+        Parent = self._topbar,
+    })
+    Util.addListLayout(trafficContainer, 8, Enum.FillDirection.Horizontal)
+
+    -- Helper to build each traffic button
+    local function makeTrafficBtn(name: string, color: Color3, order: number, callback: () -> ())
+        local btn = Util.create("TextButton", {
+            Name = name,
+            Text = "",
+            BackgroundColor3 = color,
+            Size = UDim2.new(0, 14, 0, 14),
+            AnchorPoint = Vector2.new(0, 0.5),
+            AutoButtonColor = false,
+            LayoutOrder = order,
+            ZIndex = 9,
+            Parent = trafficContainer,
+        })
+        Util.addCorner(btn, UDim.new(1, 0))
+
+        -- Hover zoom effect: smooth slow grow
+        btn.MouseEnter:Connect(function()
+            Util.quickTween(btn, 0.35, { Size = UDim2.new(0, 18, 0, 18) })
+        end)
+        btn.MouseLeave:Connect(function()
+            Util.quickTween(btn, 0.35, { Size = UDim2.new(0, 14, 0, 14) })
+        end)
+        btn.MouseButton1Click:Connect(callback)
+        return btn
+    end
+
+    -- Close (red)
+    self._btnClose = makeTrafficBtn("CloseBtn", Tokens.TrafficClose, 1, function()
+        self:Destroy()
+    end)
+
+    -- Minimize (yellow)
+    self._btnMinimize = makeTrafficBtn("MinimizeBtn", Tokens.TrafficMinimize, 2, function()
+        self:Minimize()
+    end)
+
+    -- Maximize / fullscreen toggle (green)
+    self._isMaximized = false
+    self._btnMaximize = makeTrafficBtn("MaximizeBtn", Tokens.TrafficMaximize, 3, function()
+        self:ToggleMaximize()
+    end)
+end
+
+---------------------------------------------------------------------
+-- MINIMIZE / MAXIMIZE
+---------------------------------------------------------------------
+function AppleUI:Minimize()
+    if self._minimized then
+        Util.quickTween(self._main, 0.35, {
+            Size = self._restoreSize or self._config.Size,
+        })
+        self._minimized = false
+    else
+        self._restoreSize = self._main.Size
+        Util.quickTween(self._main, 0.35, {
+            Size = UDim2.new(self._main.Size.X.Scale, self._main.Size.X.Offset, 0, 38),
+        })
+        self._minimized = true
+    end
+end
+
+function AppleUI:ToggleMaximize()
+    if self._isMaximized then
+        Util.quickTween(self._main, 0.4, {
+            Size = self._restoreSizeMax or self._config.Size,
+            Position = self._restorePos or UDim2.new(0.5, 0, 0.5, 0),
+        })
+        self._isMaximized = false
+    else
+        self._restoreSizeMax = self._main.Size
+        self._restorePos = self._main.Position
+        Util.quickTween(self._main, 0.4, {
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+        })
+        self._isMaximized = true
+    end
+end
+
+---------------------------------------------------------------------
+-- SIDEBAR (tab navigation)
+---------------------------------------------------------------------
+function AppleUI:_buildSidebar()
+    self._sidebar = Util.create("Frame", {
+        Name = "Sidebar",
+        BackgroundColor3 = Tokens.BgSecondary,
+        Size = UDim2.new(0, 150, 1, -38),
+        Position = UDim2.new(0, 0, 0, 38),
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 3,
+        Parent = self._main,
+    })
+
+    -- Right border for sidebar
+    Util.create("Frame", {
+        Name = "SidebarBorder",
+        BackgroundColor3 = Tokens.Border,
+        Size = UDim2.new(0, 1, 1, 0),
+        Position = UDim2.new(1, -1, 0, 0),
+        BorderSizePixel = 0,
+        ZIndex = 4,
+        Parent = self._sidebar,
+    })
+
+    self._sidebarScroll = Util.create("ScrollingFrame", {
+        Name = "SidebarScroll",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -1, 1, 0),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = Tokens.TextMuted,
+        BorderSizePixel = 0,
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ZIndex = 4,
+        Parent = self._sidebar,
+    })
+    Util.addPadding(self._sidebarScroll, 8, 8, 8, 8)
+    self._sidebarLayout = Util.addListLayout(self._sidebarScroll, 4)
+end
+
+---------------------------------------------------------------------
+-- CONTENT AREA
+---------------------------------------------------------------------
+function AppleUI:_buildContentArea()
+    self._content = Util.create("Frame", {
+        Name = "Content",
+        BackgroundColor3 = Tokens.BgPrimary,
+        Size = UDim2.new(1, -150, 1, -38),
+        Position = UDim2.new(0, 150, 0, 38),
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 2,
+        Parent = self._main,
+    })
+end
+
+---------------------------------------------------------------------
+-- LOAD-IN ANIMATION (custom)
+---------------------------------------------------------------------
+function AppleUI:_playLoadAnimation()
+    -- Start scaled down and transparent
+    self._main.Size = UDim2.new(0, 0, 0, 0)
+    self._main.BackgroundTransparency = 1
+    self._topbar.BackgroundTransparency = 1
+    self._sidebar.BackgroundTransparency = 1
+    self._titleLabel.TextTransparency = 1
+
+    -- Animate in
+    task.defer(function()
+        Util.quickTween(self._main, 0.6, {
+            Size = self._config.Size,
+            BackgroundTransparency = 0,
+        })
+        task.wait(0.15)
+        Util.quickTween(self._topbar, 0.4, { BackgroundTransparency = 0 })
+        Util.quickTween(self._sidebar, 0.4, { BackgroundTransparency = 0 })
+        task.wait(0.1)
+        Util.quickTween(self._titleLabel, 0.35, { TextTransparency = 0 })
+
+        -- Fade in traffic buttons
+        for _, child in ipairs(self._topbar:FindFirstChild("TrafficLights"):GetChildren()) do
+            if child:IsA("TextButton") then
+                child.BackgroundTransparency = 1
+                Util.quickTween(child, 0.35, { BackgroundTransparency = 0 })
+                task.wait(0.06)
+            end
+        end
+    end)
+end
+
+---------------------------------------------------------------------
+-- DESTROY
+---------------------------------------------------------------------
+function AppleUI:Destroy()
+    if self._destroyed then return end
+    self._destroyed = true
+
+    -- Animate out
+    Util.quickTween(self._main, 0.35, {
+        Size = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+    })
+    task.delay(0.4, function()
+        for _, conn in ipairs(self._connections) do
+            pcall(function() conn:Disconnect() end)
+        end
+        self._screenGui:Destroy()
+    end)
+end
+
+---------------------------------------------------------------------
+-- ADD TAB
+---------------------------------------------------------------------
+function AppleUI:AddTab(config)
+    config = config or {}
+    local tabName  = config.Name or ("Tab " .. tostring(#self._tabs + 1))
+    local tabIcon  = config.Icon or ""
+    local tabOrder = #self._tabs + 1
+
+    local tabBtn = Util.create("TextButton", {
+        Name = "TabBtn_" .. tabName,
+        Text = "",
+        BackgroundColor3 = Tokens.BgTertiary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 32),
+        AutoButtonColor = false,
+        LayoutOrder = tabOrder,
+        ZIndex = 5,
+        Parent = self._sidebarScroll,
+    })
+    Util.addCorner(tabBtn, Tokens.CornerSmall)
+
+    local tabLabel = Util.create("TextLabel", {
+        Name = "Label",
+        Text = (tabIcon ~= "" and (tabIcon .. "  ") or "") .. tabName,
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextSecondary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -16, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 6,
+        Parent = tabBtn,
+    })
+
+    local tabPage = Util.create("ScrollingFrame", {
+        Name = "TabPage_" .. tabName,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Tokens.TextMuted,
+        BorderSizePixel = 0,
+        Visible = false,
+        ZIndex = 3,
+        Parent = self._content,
+    })
+    Util.addPadding(tabPage, 12, 16, 12, 16)
+    local pageLayout = Util.addListLayout(tabPage, 8)
+
+    local tabData = {
+        Name = tabName, Button = tabBtn, Label = tabLabel,
+        Page = tabPage, Layout = pageLayout, Order = tabOrder,
+    }
+    table.insert(self._tabs, tabData)
+
+    tabBtn.MouseEnter:Connect(function()
+        if self._activeTab ~= tabData then
+            Util.quickTween(tabBtn, 0.2, { BackgroundTransparency = 0.5 })
+        end
+    end)
+    tabBtn.MouseLeave:Connect(function()
+        if self._activeTab ~= tabData then
+            Util.quickTween(tabBtn, 0.2, { BackgroundTransparency = 1 })
+        end
+    end)
+    tabBtn.MouseButton1Click:Connect(function()
+        self:_switchTab(tabData)
+    end)
+
+    if #self._tabs == 1 then
+        self:_switchTab(tabData)
+    end
+
+    local TabAPI = {}
+    TabAPI._page = tabPage
+    TabAPI._layout = pageLayout
+    TabAPI._lib = self
+
+    function TabAPI:AddButton(cfg) return self._lib:_createButton(self._page, cfg) end
+    function TabAPI:AddToggle(cfg) return self._lib:_createToggle(self._page, cfg) end
+    function TabAPI:AddLabel(cfg) return self._lib:_createLabel(self._page, cfg) end
+    function TabAPI:AddText(cfg) return self._lib:_createTextInput(self._page, cfg) end
+    function TabAPI:AddDropdown(cfg) return self._lib:_createDropdown(self._page, cfg) end
+    function TabAPI:AddSlider(cfg) return self._lib:_createSlider(self._page, cfg) end
+    function TabAPI:AddColorpicker(cfg) return self._lib:_createColorpicker(self._page, cfg) end
+    function TabAPI:AddSeparator() return self._lib:_createSeparator(self._page) end
+
+    return TabAPI
+end
+
+---------------------------------------------------------------------
+-- SWITCH TAB
+---------------------------------------------------------------------
+function AppleUI:_switchTab(tabData)
+    if self._activeTab then
+        local old = self._activeTab
+        Util.quickTween(old.Button, 0.25, { BackgroundTransparency = 1 })
+        Util.quickTween(old.Label, 0.2, { TextColor3 = Tokens.TextSecondary })
+        old.Page.Visible = false
+    end
+    self._activeTab = tabData
+    Util.quickTween(tabData.Button, 0.25, { BackgroundTransparency = 0.15 })
+    Util.quickTween(tabData.Label, 0.2, { TextColor3 = Tokens.TextPrimary })
+    tabData.Page.Visible = true
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: BUTTON
+---------------------------------------------------------------------
+function AppleUI:_createButton(parent, config)
+    config = config or {}
+    local btnText  = config.Text or "Button"
+    local callback = config.Callback or function() end
+    local order    = config.LayoutOrder or 999
+
+    local container = Util.create("Frame", {
+        Name = "ButtonContainer",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 36),
+        LayoutOrder = order,
+        ZIndex = 4,
+        Parent = parent,
+    })
+
+    local btn = Util.create("TextButton", {
+        Name = "Button",
+        Text = btnText,
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundColor3 = Tokens.Accent,
+        Size = UDim2.new(1, 0, 1, 0),
+        AutoButtonColor = false,
+        ClipsDescendants = true,
+        ZIndex = 5,
+        Parent = container,
+    })
+    Util.addCorner(btn, Tokens.CornerSmall)
+
+    btn.MouseEnter:Connect(function()
+        Util.quickTween(btn, 0.2, { BackgroundColor3 = Tokens.AccentHover })
+    end)
+    btn.MouseLeave:Connect(function()
+        Util.quickTween(btn, 0.2, { BackgroundColor3 = Tokens.Accent })
+    end)
+    btn.MouseButton1Click:Connect(function()
+        Util.ripple(btn, Mouse.X - btn.AbsolutePosition.X, Mouse.Y - btn.AbsolutePosition.Y)
+        pcall(callback)
+    end)
+
+    local api = {}
+    function api:SetText(t) btn.Text = t end
+    return api
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: TOGGLE
+---------------------------------------------------------------------
+function AppleUI:_createToggle(parent, config)
+    config = config or {}
+    local label    = config.Text or "Toggle"
+    local default  = if config.Default ~= nil then config.Default else false
+    local callback = config.Callback or function() end
+    local order    = config.LayoutOrder or 999
+    local toggled  = default
+
+    local container = Util.create("Frame", {
+        Name = "ToggleContainer",
+        BackgroundColor3 = Tokens.BgTertiary,
+        Size = UDim2.new(1, 0, 0, 38),
+        LayoutOrder = order,
+        ZIndex = 4,
+        Parent = parent,
+    })
+    Util.addCorner(container, Tokens.CornerSmall)
+
+    Util.create("TextLabel", {
+        Name = "Label",
+        Text = label,
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -70, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 5,
+        Parent = container,
+    })
+
+    local track = Util.create("Frame", {
+        Name = "Track",
+        BackgroundColor3 = if toggled then Tokens.Accent else Tokens.BgHover,
+        Size = UDim2.new(0, 42, 0, 22),
+        Position = UDim2.new(1, -54, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        ZIndex = 5,
+        Parent = container,
+    })
+    Util.addCorner(track, UDim.new(1, 0))
+
+    local knob = Util.create("Frame", {
+        Name = "Knob",
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = if toggled then UDim2.new(1, -19, 0.5, 0) else UDim2.new(0, 3, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        ZIndex = 6,
+        Parent = track,
+    })
+    Util.addCorner(knob, UDim.new(1, 0))
+
+    local function updateVisual()
+        if toggled then
+            Util.quickTween(track, 0.3, { BackgroundColor3 = Tokens.Accent })
+            Util.quickTween(knob, 0.3, { Position = UDim2.new(1, -19, 0.5, 0) })
+        else
+            Util.quickTween(track, 0.3, { BackgroundColor3 = Tokens.BgHover })
+            Util.quickTween(knob, 0.3, { Position = UDim2.new(0, 3, 0.5, 0) })
+        end
+    end
+
+    local clickBtn = Util.create("TextButton", {
+        Name = "ClickArea",
+        Text = "",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 7,
+        Parent = container,
+    })
+    clickBtn.MouseButton1Click:Connect(function()
+        toggled = not toggled
+        updateVisual()
+        pcall(callback, toggled)
+    end)
+
+    local api = {}
+    function api:Set(v) toggled = v; updateVisual(); pcall(callback, toggled) end
+    function api:Get() return toggled end
+    return api
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: LABEL
+---------------------------------------------------------------------
+function AppleUI:_createLabel(parent, config)
+    config = config or {}
+    local text   = config.Text or "Label"
+    local order  = config.LayoutOrder or 999
+    local isBold = config.Bold or false
+
+    local lbl = Util.create("TextLabel", {
+        Name = "Label",
+        Text = text,
+        Font = if isBold then Tokens.FontBold else Tokens.FontFamily,
+        TextSize = if isBold then Tokens.FontSizeTitle else Tokens.FontSizeBody,
+        TextColor3 = if isBold then Tokens.TextPrimary else Tokens.TextSecondary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 22),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        LayoutOrder = order,
+        ZIndex = 4,
+        Parent = parent,
+    })
+
+    local api = {}
+    function api:SetText(t) lbl.Text = t end
+    return api
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: TEXT INPUT
+---------------------------------------------------------------------
+function AppleUI:_createTextInput(parent, config)
+    config = config or {}
+    local label       = config.Text or "Input"
+    local placeholder = config.Placeholder or "Type here..."
+    local callback    = config.Callback or function() end
+    local order       = config.LayoutOrder or 999
+
+    local container = Util.create("Frame", {
+        Name = "TextInputContainer",
+        BackgroundColor3 = Tokens.BgTertiary,
+        Size = UDim2.new(1, 0, 0, 38),
+        LayoutOrder = order,
+        ZIndex = 4,
+        Parent = parent,
+    })
+    Util.addCorner(container, Tokens.CornerSmall)
+
+    Util.create("TextLabel", {
+        Name = "Label",
+        Text = label,
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.4, 0, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 5,
+        Parent = container,
+    })
+
+    local inputFrame = Util.create("Frame", {
+        Name = "InputFrame",
+        BackgroundColor3 = Tokens.BgPrimary,
+        Size = UDim2.new(0.55, -12, 0, 26),
+        Position = UDim2.new(0.45, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        ZIndex = 5,
+        Parent = container,
+    })
+    Util.addCorner(inputFrame, Tokens.CornerSmall)
+    Util.addStroke(inputFrame, Tokens.BorderLight, 1)
+
+    local textBox = Util.create("TextBox", {
+        Name = "TextBox",
+        Text = "",
+        PlaceholderText = placeholder,
+        PlaceholderColor3 = Tokens.TextMuted,
+        Font = Tokens.FontLight,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -12, 1, 0),
+        Position = UDim2.new(0, 6, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ClearTextOnFocus = false,
+        ZIndex = 6,
+        Parent = inputFrame,
+    })
+
+    textBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then pcall(callback, textBox.Text) end
+    end)
+    textBox.Focused:Connect(function()
+        Util.quickTween(inputFrame, 0.2, { BackgroundColor3 = Tokens.BgSecondary })
+    end)
+    textBox.FocusLost:Connect(function()
+        Util.quickTween(inputFrame, 0.2, { BackgroundColor3 = Tokens.BgPrimary })
+    end)
+
+    local api = {}
+    function api:GetText() return textBox.Text end
+    function api:SetText(t) textBox.Text = t end
+    return api
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: SEPARATOR
+---------------------------------------------------------------------
+function AppleUI:_createSeparator(parent)
+    Util.create("Frame", {
+        Name = "Separator",
+        BackgroundColor3 = Tokens.Border,
+        Size = UDim2.new(1, 0, 0, 1),
+        LayoutOrder = 998,
+        ZIndex = 4,
+        Parent = parent,
+    })
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: DROPDOWN
+---------------------------------------------------------------------
+function AppleUI:_createDropdown(parent, config)
+    config = config or {}
+    local label    = config.Text or "Dropdown"
+    local items    = config.Items or {"Option 1", "Option 2", "Option 3"}
+    local default  = config.Default or items[1]
+    local callback = config.Callback or function() end
+    local order    = config.LayoutOrder or 999
+    local isOpen   = false
+    local selected = default
+
+    local container = Util.create("Frame", {
+        Name = "DropdownContainer",
+        BackgroundColor3 = Tokens.BgTertiary,
+        Size = UDim2.new(1, 0, 0, 38),
+        ClipsDescendants = false,
+        LayoutOrder = order,
+        ZIndex = 10,
+        Parent = parent,
+    })
+    Util.addCorner(container, Tokens.CornerSmall)
+
+    Util.create("TextLabel", {
+        Name = "Label",
+        Text = label,
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.4, 0, 0, 38),
+        Position = UDim2.new(0, 12, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 11,
+        Parent = container,
+    })
+
+    local selectedBtn = Util.create("TextButton", {
+        Name = "SelectedBtn",
+        Text = selected .. "  ▾",
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextSecondary,
+        BackgroundColor3 = Tokens.BgPrimary,
+        Size = UDim2.new(0.55, -12, 0, 26),
+        Position = UDim2.new(0.45, 0, 0, 6),
+        AutoButtonColor = false,
+        ZIndex = 11,
+        Parent = container,
+    })
+    Util.addCorner(selectedBtn, Tokens.CornerSmall)
+    Util.addStroke(selectedBtn, Tokens.BorderLight, 1)
+
+    local optionList = Util.create("Frame", {
+        Name = "OptionList",
+        BackgroundColor3 = Tokens.BgSecondary,
+        Size = UDim2.new(0.55, -12, 0, #items * 28 + 8),
+        Position = UDim2.new(0.45, 0, 0, 36),
+        Visible = false,
+        ClipsDescendants = true,
+        ZIndex = 50,
+        Parent = container,
+    })
+    Util.addCorner(optionList, Tokens.CornerSmall)
+    Util.addStroke(optionList, Tokens.BorderLight, 1)
+    Util.addPadding(optionList, 4, 4, 4, 4)
+    Util.addListLayout(optionList, 2)
+
+    local function makeOption(item, idx)
+        local optBtn = Util.create("TextButton", {
+            Name = "Opt_" .. item,
+            Text = item,
+            Font = Tokens.FontLight,
+            TextSize = Tokens.FontSizeSmall,
+            TextColor3 = Tokens.TextSecondary,
+            BackgroundColor3 = Tokens.BgTertiary,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 26),
+            AutoButtonColor = false,
+            LayoutOrder = idx,
+            ZIndex = 51,
+            Parent = optionList,
+        })
+        Util.addCorner(optBtn, Tokens.CornerSmall)
+        optBtn.MouseEnter:Connect(function()
+            Util.quickTween(optBtn, 0.15, { BackgroundTransparency = 0.3, TextColor3 = Tokens.TextPrimary })
+        end)
+        optBtn.MouseLeave:Connect(function()
+            Util.quickTween(optBtn, 0.15, { BackgroundTransparency = 1, TextColor3 = Tokens.TextSecondary })
+        end)
+        optBtn.MouseButton1Click:Connect(function()
+            selected = item
+            selectedBtn.Text = item .. "  ▾"
+            isOpen = false
+            optionList.Visible = false
+            pcall(callback, item)
+        end)
+    end
+
+    for i, item in ipairs(items) do
+        makeOption(item, i)
+    end
+
+    selectedBtn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        optionList.Visible = isOpen
+    end)
+
+    table.insert(self._connections, UserInputService.InputBegan:Connect(function(input)
+        if isOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
+            task.defer(function()
+                local pos = input.Position
+                local abs = optionList.AbsolutePosition
+                local sz  = optionList.AbsoluteSize
+                local bAbs = selectedBtn.AbsolutePosition
+                local bSz  = selectedBtn.AbsoluteSize
+                local inOpt = pos.X >= abs.X and pos.X <= abs.X + sz.X and pos.Y >= abs.Y and pos.Y <= abs.Y + sz.Y
+                local inBtn = pos.X >= bAbs.X and pos.X <= bAbs.X + bSz.X and pos.Y >= bAbs.Y and pos.Y <= bAbs.Y + bSz.Y
+                if not inOpt and not inBtn then
+                    isOpen = false
+                    optionList.Visible = false
+                end
+            end)
+        end
+    end))
+
+    local api = {}
+    function api:Set(v) selected = v; selectedBtn.Text = v .. "  ▾"; pcall(callback, v) end
+    function api:Get() return selected end
+    function api:Refresh(newItems)
+        for _, c in ipairs(optionList:GetChildren()) do
+            if c:IsA("TextButton") then c:Destroy() end
+        end
+        items = newItems
+        optionList.Size = UDim2.new(0.55, -12, 0, #items * 28 + 8)
+        for i, item in ipairs(items) do makeOption(item, i) end
+    end
+    return api
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: SLIDER
+---------------------------------------------------------------------
+function AppleUI:_createSlider(parent, config)
+    config = config or {}
+    local label    = config.Text or "Slider"
+    local minVal   = config.Min or 0
+    local maxVal   = config.Max or 100
+    local default  = config.Default or minVal
+    local callback = config.Callback or function() end
+    local order    = config.LayoutOrder or 999
+    local suffix   = config.Suffix or ""
+    local value    = default
+
+    local container = Util.create("Frame", {
+        Name = "SliderContainer",
+        BackgroundColor3 = Tokens.BgTertiary,
+        Size = UDim2.new(1, 0, 0, 50),
+        LayoutOrder = order,
+        ZIndex = 4,
+        Parent = parent,
+    })
+    Util.addCorner(container, Tokens.CornerSmall)
+
+    Util.create("TextLabel", {
+        Name = "Label",
+        Text = label,
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.6, 0, 0, 20),
+        Position = UDim2.new(0, 12, 0, 4),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 5,
+        Parent = container,
+    })
+
+    local valLabel = Util.create("TextLabel", {
+        Name = "Value",
+        Text = tostring(math.floor(value)) .. suffix,
+        Font = Tokens.FontLight,
+        TextSize = Tokens.FontSizeSmall,
+        TextColor3 = Tokens.TextSecondary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.4, -12, 0, 20),
+        Position = UDim2.new(0.6, 0, 0, 4),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        ZIndex = 5,
+        Parent = container,
+    })
+
+    local trackBg = Util.create("Frame", {
+        Name = "TrackBg",
+        BackgroundColor3 = Tokens.BgHover,
+        Size = UDim2.new(1, -24, 0, 6),
+        Position = UDim2.new(0, 12, 0, 34),
+        ZIndex = 5,
+        Parent = container,
+    })
+    Util.addCorner(trackBg, UDim.new(1, 0))
+
+    local fillFrac = Util.clamp01((value - minVal) / (maxVal - minVal))
+
+    local trackFill = Util.create("Frame", {
+        Name = "TrackFill",
+        BackgroundColor3 = Tokens.Accent,
+        Size = UDim2.new(fillFrac, 0, 1, 0),
+        ZIndex = 6,
+        Parent = trackBg,
+    })
+    Util.addCorner(trackFill, UDim.new(1, 0))
+
+    local knob = Util.create("Frame", {
+        Name = "Knob",
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = UDim2.new(fillFrac, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        ZIndex = 7,
+        Parent = trackBg,
+    })
+    Util.addCorner(knob, UDim.new(1, 0))
+
+    local dragging = false
+
+    local function updateSlider(inputPos)
+        local trackAbsX = trackBg.AbsolutePosition.X
+        local trackW    = trackBg.AbsoluteSize.X
+        local rel = Util.clamp01((inputPos.X - trackAbsX) / trackW)
+        value = math.floor(minVal + (maxVal - minVal) * rel + 0.5)
+        valLabel.Text = tostring(value) .. suffix
+        trackFill.Size = UDim2.new(rel, 0, 1, 0)
+        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        pcall(callback, value)
+    end
+
+    local sliderBtn = Util.create("TextButton", {
+        Name = "SliderClickArea",
+        Text = "",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 20),
+        Position = UDim2.new(0, 0, 0, 26),
+        ZIndex = 8,
+        Parent = container,
+    })
+    sliderBtn.MouseButton1Down:Connect(function() dragging = true end)
+
+    table.insert(self._connections, UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateSlider(input.Position)
+        end
+    end))
+    table.insert(self._connections, UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end))
+
+    local api = {}
+    function api:Set(v)
+        value = math.clamp(v, minVal, maxVal)
+        local rel = Util.clamp01((value - minVal) / (maxVal - minVal))
+        valLabel.Text = tostring(math.floor(value)) .. suffix
+        trackFill.Size = UDim2.new(rel, 0, 1, 0)
+        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        pcall(callback, value)
+    end
+    function api:Get() return value end
+    return api
+end
+
+---------------------------------------------------------------------
+-- COMPONENT: COLORPICKER
+---------------------------------------------------------------------
+function AppleUI:_createColorpicker(parent, config)
+    config = config or {}
+    local label    = config.Text or "Color"
+    local default  = config.Default or Color3.fromRGB(0, 122, 255)
+    local callback = config.Callback or function() end
+    local order    = config.LayoutOrder or 999
+    local currentColor = default
+    local pickerOpen = false
+    local hue, sat, val = default:ToHSV()
+
+    local container = Util.create("Frame", {
+        Name = "ColorpickerContainer",
+        BackgroundColor3 = Tokens.BgTertiary,
+        Size = UDim2.new(1, 0, 0, 38),
+        ClipsDescendants = false,
+        LayoutOrder = order,
+        ZIndex = 10,
+        Parent = parent,
+    })
+    Util.addCorner(container, Tokens.CornerSmall)
+
+    Util.create("TextLabel", {
+        Name = "Label",
+        Text = label,
+        Font = Tokens.FontFamily,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.6, 0, 0, 38),
+        Position = UDim2.new(0, 12, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 11,
+        Parent = container,
+    })
+
+    local preview = Util.create("TextButton", {
+        Name = "PreviewBtn",
+        Text = "",
+        BackgroundColor3 = currentColor,
+        Size = UDim2.new(0, 32, 0, 22),
+        Position = UDim2.new(1, -44, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        AutoButtonColor = false,
+        ZIndex = 11,
+        Parent = container,
+    })
+    Util.addCorner(preview, Tokens.CornerSmall)
+    Util.addStroke(preview, Tokens.BorderLight, 1)
+
+    local pickerPanel = Util.create("Frame", {
+        Name = "PickerPanel",
+        BackgroundColor3 = Tokens.BgSecondary,
+        Size = UDim2.new(0, 200, 0, 170),
+        Position = UDim2.new(1, -200, 0, 40),
+        Visible = false,
+        ZIndex = 55,
+        Parent = container,
+    })
+    Util.addCorner(pickerPanel, Tokens.CornerSmall)
+    Util.addStroke(pickerPanel, Tokens.BorderLight, 1)
+
+    local svField = Util.create("ImageLabel", {
+        Name = "SVField",
+        BackgroundColor3 = Color3.fromHSV(hue, 1, 1),
+        Image = "rbxassetid://4155801252",
+        Size = UDim2.new(0, 170, 0, 120),
+        Position = UDim2.new(0, 8, 0, 8),
+        ZIndex = 56,
+        Parent = pickerPanel,
+    })
+    Util.addCorner(svField, Tokens.CornerSmall)
+
+    local darkOverlay = Util.create("ImageLabel", {
+        Name = "DarkOverlay",
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://4155801252",
+        ImageColor3 = Color3.fromRGB(0, 0, 0),
+        ScaleType = Enum.ScaleType.Stretch,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 57,
+        Rotation = 180,
+        Parent = svField,
+    })
+    Util.addCorner(darkOverlay, Tokens.CornerSmall)
+
+    local svCursor = Util.create("Frame", {
+        Name = "SVCursor",
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Size = UDim2.new(0, 10, 0, 10),
+        Position = UDim2.new(sat, 0, 1 - val, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        ZIndex = 58,
+        Parent = svField,
+    })
+    Util.addCorner(svCursor, UDim.new(1, 0))
+    Util.addStroke(svCursor, Color3.fromRGB(40, 40, 40), 2)
+
+    local hueBar = Util.create("Frame", {
+        Name = "HueBar",
+        BackgroundColor3 = Color3.fromRGB(255, 0, 0),
+        Size = UDim2.new(0, 12, 0, 120),
+        Position = UDim2.new(0, 184, 0, 8),
+        ZIndex = 56,
+        Parent = pickerPanel,
+    })
+    Util.addCorner(hueBar, Tokens.CornerSmall)
+
+    local hueGrad = Instance.new("UIGradient")
+    hueGrad.Rotation = 90
+    hueGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+        ColorSequenceKeypoint.new(0.167, Color3.fromRGB(255, 255, 0)),
+        ColorSequenceKeypoint.new(0.333, Color3.fromRGB(0, 255, 0)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+        ColorSequenceKeypoint.new(0.667, Color3.fromRGB(0, 0, 255)),
+        ColorSequenceKeypoint.new(0.833, Color3.fromRGB(255, 0, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
+    })
+    hueGrad.Parent = hueBar
+
+    local hueCursor = Util.create("Frame", {
+        Name = "HueCursor",
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Size = UDim2.new(1, 4, 0, 4),
+        Position = UDim2.new(0.5, 0, hue, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        ZIndex = 58,
+        Parent = hueBar,
+    })
+    Util.addCorner(hueCursor, UDim.new(1, 0))
+
+    local hexLabel = Util.create("TextLabel", {
+        Name = "HexLabel",
+        Text = Util.color3ToHex(currentColor),
+        Font = Tokens.FontLight,
+        TextSize = Tokens.FontSizeSmall,
+        TextColor3 = Tokens.TextSecondary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -16, 0, 20),
+        Position = UDim2.new(0, 8, 1, -26),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 56,
+        Parent = pickerPanel,
+    })
+
+    local function updateColor()
+        currentColor = Color3.fromHSV(hue, sat, val)
+        preview.BackgroundColor3 = currentColor
+        svField.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+        svCursor.Position = UDim2.new(sat, 0, 1 - val, 0)
+        hueCursor.Position = UDim2.new(0.5, 0, hue, 0)
+        hexLabel.Text = Util.color3ToHex(currentColor)
+        pcall(callback, currentColor)
+    end
+
+    local svDrag = false
+    local svBtn = Util.create("TextButton", {
+        Name = "SVClickArea", Text = "", BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0), ZIndex = 59, Parent = svField,
+    })
+    svBtn.MouseButton1Down:Connect(function() svDrag = true end)
+
+    table.insert(self._connections, UserInputService.InputChanged:Connect(function(input)
+        if svDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            sat = Util.clamp01((input.Position.X - svField.AbsolutePosition.X) / svField.AbsoluteSize.X)
+            val = 1 - Util.clamp01((input.Position.Y - svField.AbsolutePosition.Y) / svField.AbsoluteSize.Y)
+            updateColor()
+        end
+    end))
+    table.insert(self._connections, UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then svDrag = false end
+    end))
+
+    local hueDrag = false
+    local hueBtn = Util.create("TextButton", {
+        Name = "HueClickArea", Text = "", BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0), ZIndex = 59, Parent = hueBar,
+    })
+    hueBtn.MouseButton1Down:Connect(function() hueDrag = true end)
+
+    table.insert(self._connections, UserInputService.InputChanged:Connect(function(input)
+        if hueDrag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            hue = Util.clamp01((input.Position.Y - hueBar.AbsolutePosition.Y) / hueBar.AbsoluteSize.Y)
+            updateColor()
+        end
+    end))
+    table.insert(self._connections, UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then hueDrag = false end
+    end))
+
+    preview.MouseButton1Click:Connect(function()
+        pickerOpen = not pickerOpen
+        pickerPanel.Visible = pickerOpen
+    end)
+
+    local api = {}
+    function api:Set(c) hue, sat, val = c:ToHSV(); updateColor() end
+    function api:Get() return currentColor end
+    return api
+end
+
+---------------------------------------------------------------------
+-- NOTIFICATION TOAST
+---------------------------------------------------------------------
+function AppleUI:Notify(config)
+    config = config or {}
+    local title    = config.Title or "Notification"
+    local message  = config.Message or ""
+    local duration = config.Duration or 3
+
+    local toast = Util.create("Frame", {
+        Name = "Toast",
+        BackgroundColor3 = Tokens.BgSecondary,
+        Size = UDim2.new(0, 280, 0, 60),
+        Position = UDim2.new(1, -290, 1, 10),
+        ZIndex = 100,
+        Parent = self._screenGui,
+    })
+    Util.addCorner(toast, Tokens.CornerSmall)
+    Util.addStroke(toast, Tokens.BorderLight, 1)
+    Util.addShadow(toast)
+
+    Util.create("TextLabel", {
+        Name = "Title",
+        Text = title,
+        Font = Tokens.FontBold,
+        TextSize = Tokens.FontSizeBody,
+        TextColor3 = Tokens.TextPrimary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -16, 0, 22),
+        Position = UDim2.new(0, 12, 0, 6),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 101,
+        Parent = toast,
+    })
+
+    Util.create("TextLabel", {
+        Name = "Message",
+        Text = message,
+        Font = Tokens.FontLight,
+        TextSize = Tokens.FontSizeSmall,
+        TextColor3 = Tokens.TextSecondary,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -16, 0, 18),
+        Position = UDim2.new(0, 12, 0, 30),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 101,
+        Parent = toast,
+    })
+
+    Util.quickTween(toast, 0.4, { Position = UDim2.new(1, -290, 1, -70) })
+    task.delay(duration, function()
+        Util.quickTween(toast, 0.4, { Position = UDim2.new(1, -290, 1, 10) })
+        task.delay(0.5, function() toast:Destroy() end)
+    end)
+end
+
+---------------------------------------------------------------------
+-- KEYBIND: Toggle visibility
+---------------------------------------------------------------------
+function AppleUI:BindToggle(keyCode)
+    keyCode = keyCode or Enum.KeyCode.RightControl
+    table.insert(self._connections, UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == keyCode then
+            self._main.Visible = not self._main.Visible
+        end
+    end))
+end
+
+---------------------------------------------------------------------
+-- RETURN MODULE
+---------------------------------------------------------------------
+return AppleUI
