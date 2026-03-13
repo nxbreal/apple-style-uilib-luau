@@ -907,7 +907,7 @@ function AppleUI:_createDropdown(parent, config)
 
     local selectedBtn = Util.create("TextButton", {
         Name = "SelectedBtn",
-        Text = selected .. "  ▾",
+        Text = selected .. "  v",
         Font = Tokens.FontFamily,
         TextSize = Tokens.FontSizeBody,
         TextColor3 = Tokens.TextSecondary,
@@ -960,7 +960,7 @@ function AppleUI:_createDropdown(parent, config)
         end)
         optBtn.MouseButton1Click:Connect(function()
             selected = item
-            selectedBtn.Text = item .. "  ▾"
+            selectedBtn.Text = item .. "  v"
             isOpen = false
             optionList.Visible = false
             pcall(callback, item)
@@ -995,7 +995,7 @@ function AppleUI:_createDropdown(parent, config)
     end))
 
     local api = {}
-    function api:Set(v) selected = v; selectedBtn.Text = v .. "  ▾"; pcall(callback, v) end
+    function api:Set(v) selected = v; selectedBtn.Text = v .. "  v"; pcall(callback, v) end
     function api:Get() return selected end
     function api:Refresh(newItems)
         for _, c in ipairs(optionList:GetChildren()) do
