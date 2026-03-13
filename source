@@ -437,7 +437,7 @@ function AppleUI:_buildSidebar()
     self._sidebar = Util.create("Frame", {
         Name = "Sidebar",
         BackgroundColor3 = Tokens.BgSecondary,
-        Size = UDim2.new(0, 150, 1, -38),
+        Size = UDim2.new(0, 150, 1, -48),
         Position = UDim2.new(0, 0, 0, 38),
         BorderSizePixel = 0,
         ClipsDescendants = true,
@@ -479,7 +479,7 @@ function AppleUI:_buildContentArea()
     self._content = Util.create("Frame", {
         Name = "Content",
         BackgroundColor3 = Tokens.BgPrimary,
-        Size = UDim2.new(1, -150, 1, -38),
+        Size = UDim2.new(1, -150, 1, -48),
         Position = UDim2.new(0, 150, 0, 38),
         BorderSizePixel = 0,
         ClipsDescendants = true,
@@ -1235,10 +1235,10 @@ function AppleUI:_createColorpicker(parent, config)
         Name = "PickerPanel",
         BackgroundColor3 = Tokens.BgSecondary,
         Size = UDim2.new(0, 200, 0, 170),
-        Position = UDim2.new(1, -200, 0, 40),
+        Position = UDim2.new(0, 0, 0, 0),
         Visible = false,
-        ZIndex = 55,
-        Parent = container,
+        ZIndex = 200,
+        Parent = self._screenGui,
     })
     Util.addCorner(pickerPanel, Tokens.CornerSmall)
     Util.addStroke(pickerPanel, Tokens.BorderLight, 1)
@@ -1249,7 +1249,7 @@ function AppleUI:_createColorpicker(parent, config)
         Image = "rbxassetid://4155801252",
         Size = UDim2.new(0, 170, 0, 120),
         Position = UDim2.new(0, 8, 0, 8),
-        ZIndex = 56,
+        ZIndex = 201,
         Parent = pickerPanel,
     })
     Util.addCorner(svField, Tokens.CornerSmall)
@@ -1261,7 +1261,7 @@ function AppleUI:_createColorpicker(parent, config)
         ImageColor3 = Color3.fromRGB(0, 0, 0),
         ScaleType = Enum.ScaleType.Stretch,
         Size = UDim2.new(1, 0, 1, 0),
-        ZIndex = 57,
+        ZIndex = 202,
         Rotation = 180,
         Parent = svField,
     })
@@ -1273,7 +1273,7 @@ function AppleUI:_createColorpicker(parent, config)
         Size = UDim2.new(0, 10, 0, 10),
         Position = UDim2.new(sat, 0, 1 - val, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        ZIndex = 58,
+        ZIndex = 203,
         Parent = svField,
     })
     Util.addCorner(svCursor, UDim.new(1, 0))
@@ -1284,7 +1284,7 @@ function AppleUI:_createColorpicker(parent, config)
         BackgroundColor3 = Color3.fromRGB(255, 0, 0),
         Size = UDim2.new(0, 12, 0, 120),
         Position = UDim2.new(0, 184, 0, 8),
-        ZIndex = 56,
+        ZIndex = 201,
         Parent = pickerPanel,
     })
     Util.addCorner(hueBar, Tokens.CornerSmall)
@@ -1308,7 +1308,7 @@ function AppleUI:_createColorpicker(parent, config)
         Size = UDim2.new(1, 4, 0, 4),
         Position = UDim2.new(0.5, 0, hue, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        ZIndex = 58,
+        ZIndex = 203,
         Parent = hueBar,
     })
     Util.addCorner(hueCursor, UDim.new(1, 0))
@@ -1323,7 +1323,7 @@ function AppleUI:_createColorpicker(parent, config)
         Size = UDim2.new(1, -16, 0, 20),
         Position = UDim2.new(0, 8, 1, -26),
         TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 56,
+        ZIndex = 201,
         Parent = pickerPanel,
     })
 
@@ -1340,7 +1340,7 @@ function AppleUI:_createColorpicker(parent, config)
     local svDrag = false
     local svBtn = Util.create("TextButton", {
         Name = "SVClickArea", Text = "", BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0), ZIndex = 59, Parent = svField,
+        Size = UDim2.new(1, 0, 1, 0), ZIndex = 204, Parent = svField,
     })
     svBtn.MouseButton1Down:Connect(function() svDrag = true end)
 
@@ -1358,7 +1358,7 @@ function AppleUI:_createColorpicker(parent, config)
     local hueDrag = false
     local hueBtn = Util.create("TextButton", {
         Name = "HueClickArea", Text = "", BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0), ZIndex = 59, Parent = hueBar,
+        Size = UDim2.new(1, 0, 1, 0), ZIndex = 204, Parent = hueBar,
     })
     hueBtn.MouseButton1Down:Connect(function() hueDrag = true end)
 
@@ -1374,6 +1374,12 @@ function AppleUI:_createColorpicker(parent, config)
 
     preview.MouseButton1Click:Connect(function()
         pickerOpen = not pickerOpen
+        if pickerOpen then
+            -- Position the panel near the preview button in absolute screen coords
+            local absPos = preview.AbsolutePosition
+            local absSize = preview.AbsoluteSize
+            pickerPanel.Position = UDim2.new(0, absPos.X + absSize.X + 8, 0, absPos.Y - 60)
+        end
         pickerPanel.Visible = pickerOpen
     end)
 
