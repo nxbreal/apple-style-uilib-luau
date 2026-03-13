@@ -1,13 +1,8 @@
--- UI Library | Apple-Style | discord.gg/notrufhamburg
--- Full custom UI library for Roblox, loadstring-compatible
--- Components: Window, Button, Toggle, Dropdown, Colorpicker, Text, Label, Slider
 
 local AppleUI = {}
 AppleUI.__index = AppleUI
 
----------------------------------------------------------------------
--- SERVICES
----------------------------------------------------------------------
+
 local Players        = game:GetService("Players")
 local TweenService   = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -16,9 +11,7 @@ local RunService     = game:GetService("RunService")
 local Player   = Players.LocalPlayer
 local Mouse    = Player:GetMouse()
 
----------------------------------------------------------------------
--- DESIGN TOKENS  (Apple-inspired grey palette)
----------------------------------------------------------------------
+
 local Tokens = {
     BgPrimary       = Color3.fromRGB(30, 30, 30),
     BgSecondary     = Color3.fromRGB(38, 38, 38),
@@ -57,9 +50,7 @@ local Tokens = {
     TweenEasing     = Enum.EasingStyle.Quint,
 }
 
----------------------------------------------------------------------
--- UTILITY HELPERS
----------------------------------------------------------------------
+
 local Util = {}
 
 function Util.create(className: string, props: {[string]: any}, children: {Instance}?)
@@ -194,9 +185,7 @@ function Util.color3ToHex(c: Color3): string
     )
 end
 
----------------------------------------------------------------------
--- DRAGGABLE MIXIN
----------------------------------------------------------------------
+
 function Util.makeDraggable(topbar: GuiObject, mainFrame: GuiObject)
     local dragging = false
     local dragStart: Vector3
@@ -230,9 +219,7 @@ function Util.makeDraggable(topbar: GuiObject, mainFrame: GuiObject)
     end)
 end
 
----------------------------------------------------------------------
--- SCREEN GUI SETUP
----------------------------------------------------------------------
+
 function AppleUI.new(config: {[string]: any}?)
     config = config or {}
     local self = setmetatable({}, AppleUI)
@@ -249,7 +236,7 @@ function AppleUI.new(config: {[string]: any}?)
     self._connections = {}
     self._destroyed  = false
 
-    -- ScreenGui
+
     self._screenGui = Util.create("ScreenGui", {
         Name = "AppleUILib",
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
@@ -258,7 +245,7 @@ function AppleUI.new(config: {[string]: any}?)
         Parent = Player:WaitForChild("PlayerGui"),
     })
 
-    -- Main container
+
     self._main = Util.create("CanvasGroup", {
         Name = "MainWindow",
         BackgroundColor3 = Tokens.BgPrimary,
@@ -272,15 +259,15 @@ function AppleUI.new(config: {[string]: any}?)
     Util.addStroke(self._main, Tokens.Border, 1)
     Util.addShadow(self._main)
 
-    -- Build internal layout
+
     self:_buildTopbar()
     self:_buildSidebar()
     self:_buildContentArea()
 
-    -- Draggable
+
     Util.makeDraggable(self._topbar, self._main)
 
-    -- Load-in animation
+
     if self._config.LoadAnim then
         self:_playLoadAnimation()
     end
@@ -288,9 +275,7 @@ function AppleUI.new(config: {[string]: any}?)
     return self
 end
 
----------------------------------------------------------------------
--- TOPBAR (Title bar + traffic-light buttons)
----------------------------------------------------------------------
+
 function AppleUI:_buildTopbar()
     self._topbar = Util.create("Frame", {
         Name = "Topbar",
@@ -300,7 +285,7 @@ function AppleUI:_buildTopbar()
         ZIndex = 5,
         Parent = self._main,
     })
-    -- Only round the TOP corners — use a clip frame trick to avoid overriding
+
     local topCornerClip = Util.create("Frame", {
         Name = "TopCornerClip",
         BackgroundColor3 = Tokens.BgSecondary,
@@ -312,7 +297,7 @@ function AppleUI:_buildTopbar()
     })
     Util.addCorner(self._topbar, Tokens.CornerRadius)
 
-    -- Bottom border line
+
     Util.create("Frame", {
         Name = "TopbarBorder",
         BackgroundColor3 = Tokens.Border,
@@ -323,7 +308,7 @@ function AppleUI:_buildTopbar()
         Parent = self._topbar,
     })
 
-    -- Title
+
     self._titleLabel = Util.create("TextLabel", {
         Name = "Title",
         Text = self._config.Title,
@@ -339,7 +324,7 @@ function AppleUI:_buildTopbar()
         Parent = self._topbar,
     })
 
-    -- Traffic-light buttons container
+
     local trafficContainer = Util.create("Frame", {
         Name = "TrafficLights",
         BackgroundTransparency = 1,
@@ -351,7 +336,7 @@ function AppleUI:_buildTopbar()
     })
     Util.addListLayout(trafficContainer, 8, Enum.FillDirection.Horizontal)
 
-    -- Helper to build each traffic button
+
     local function makeTrafficBtn(name: string, color: Color3, order: number, callback: () -> ())
         local btn = Util.create("TextButton", {
             Name = name,
@@ -366,7 +351,7 @@ function AppleUI:_buildTopbar()
         })
         Util.addCorner(btn, UDim.new(1, 0))
 
-        -- Hover zoom effect: smooth slow grow
+
         btn.MouseEnter:Connect(function()
             Util.quickTween(btn, 0.35, { Size = UDim2.new(0, 18, 0, 18) })
         end)
@@ -377,26 +362,24 @@ function AppleUI:_buildTopbar()
         return btn
     end
 
-    -- Close (red)
+
     self._btnClose = makeTrafficBtn("CloseBtn", Tokens.TrafficClose, 1, function()
         self:Destroy()
     end)
 
-    -- Minimize (yellow)
+
     self._btnMinimize = makeTrafficBtn("MinimizeBtn", Tokens.TrafficMinimize, 2, function()
         self:Minimize()
     end)
 
-    -- Maximize / fullscreen toggle (green)
+
     self._isMaximized = false
     self._btnMaximize = makeTrafficBtn("MaximizeBtn", Tokens.TrafficMaximize, 3, function()
         self:ToggleMaximize()
     end)
 end
 
----------------------------------------------------------------------
--- MINIMIZE / MAXIMIZE
----------------------------------------------------------------------
+
 function AppleUI:Minimize()
     if self._minimized then
         Util.quickTween(self._main, 0.35, {
@@ -430,9 +413,7 @@ function AppleUI:ToggleMaximize()
     end
 end
 
----------------------------------------------------------------------
--- SIDEBAR (tab navigation)
----------------------------------------------------------------------
+
 function AppleUI:_buildSidebar()
     self._sidebar = Util.create("Frame", {
         Name = "Sidebar",
@@ -445,7 +426,7 @@ function AppleUI:_buildSidebar()
         Parent = self._main,
     })
 
-    -- Right border for sidebar
+
     Util.create("Frame", {
         Name = "SidebarBorder",
         BackgroundColor3 = Tokens.Border,
@@ -472,9 +453,7 @@ function AppleUI:_buildSidebar()
     self._sidebarLayout = Util.addListLayout(self._sidebarScroll, 4)
 end
 
----------------------------------------------------------------------
--- CONTENT AREA
----------------------------------------------------------------------
+
 function AppleUI:_buildContentArea()
     self._content = Util.create("Frame", {
         Name = "Content",
@@ -488,18 +467,16 @@ function AppleUI:_buildContentArea()
     })
 end
 
----------------------------------------------------------------------
--- LOAD-IN ANIMATION (custom)
----------------------------------------------------------------------
+
 function AppleUI:_playLoadAnimation()
-    -- Start scaled down and transparent
+
     self._main.Size = UDim2.new(0, 0, 0, 0)
     self._main.BackgroundTransparency = 1
     self._topbar.BackgroundTransparency = 1
     self._sidebar.BackgroundTransparency = 1
     self._titleLabel.TextTransparency = 1
 
-    -- Animate in
+
     task.defer(function()
         Util.quickTween(self._main, 0.6, {
             Size = self._config.Size,
@@ -511,7 +488,7 @@ function AppleUI:_playLoadAnimation()
         task.wait(0.1)
         Util.quickTween(self._titleLabel, 0.35, { TextTransparency = 0 })
 
-        -- Fade in traffic buttons
+
         for _, child in ipairs(self._topbar:FindFirstChild("TrafficLights"):GetChildren()) do
             if child:IsA("TextButton") then
                 child.BackgroundTransparency = 1
@@ -522,14 +499,12 @@ function AppleUI:_playLoadAnimation()
     end)
 end
 
----------------------------------------------------------------------
--- DESTROY
----------------------------------------------------------------------
+
 function AppleUI:Destroy()
     if self._destroyed then return end
     self._destroyed = true
 
-    -- Animate out
+
     Util.quickTween(self._main, 0.35, {
         Size = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1,
@@ -542,9 +517,7 @@ function AppleUI:Destroy()
     end)
 end
 
----------------------------------------------------------------------
--- ADD TAB
----------------------------------------------------------------------
+
 function AppleUI:AddTab(config)
     config = config or {}
     local tabName  = config.Name or ("Tab " .. tostring(#self._tabs + 1))
@@ -635,9 +608,7 @@ function AppleUI:AddTab(config)
     return TabAPI
 end
 
----------------------------------------------------------------------
--- SWITCH TAB
----------------------------------------------------------------------
+
 function AppleUI:_switchTab(tabData)
     if self._activeTab then
         local old = self._activeTab
@@ -651,9 +622,7 @@ function AppleUI:_switchTab(tabData)
     tabData.Page.Visible = true
 end
 
----------------------------------------------------------------------
--- COMPONENT: BUTTON
----------------------------------------------------------------------
+
 function AppleUI:_createButton(parent, config)
     config = config or {}
     local btnText  = config.Text or "Button"
@@ -700,9 +669,7 @@ function AppleUI:_createButton(parent, config)
     return api
 end
 
----------------------------------------------------------------------
--- COMPONENT: TOGGLE
----------------------------------------------------------------------
+
 function AppleUI:_createToggle(parent, config)
     config = config or {}
     local label    = config.Text or "Toggle"
@@ -787,9 +754,7 @@ function AppleUI:_createToggle(parent, config)
     return api
 end
 
----------------------------------------------------------------------
--- COMPONENT: LABEL
----------------------------------------------------------------------
+
 function AppleUI:_createLabel(parent, config)
     config = config or {}
     local text   = config.Text or "Label"
@@ -815,9 +780,7 @@ function AppleUI:_createLabel(parent, config)
     return api
 end
 
----------------------------------------------------------------------
--- COMPONENT: TEXT INPUT
----------------------------------------------------------------------
+
 function AppleUI:_createTextInput(parent, config)
     config = config or {}
     local label       = config.Text or "Input"
@@ -894,9 +857,7 @@ function AppleUI:_createTextInput(parent, config)
     return api
 end
 
----------------------------------------------------------------------
--- COMPONENT: SEPARATOR
----------------------------------------------------------------------
+
 function AppleUI:_createSeparator(parent)
     Util.create("Frame", {
         Name = "Separator",
@@ -908,9 +869,7 @@ function AppleUI:_createSeparator(parent)
     })
 end
 
----------------------------------------------------------------------
--- COMPONENT: DROPDOWN
----------------------------------------------------------------------
+
 function AppleUI:_createDropdown(parent, config)
     config = config or {}
     local label    = config.Text or "Dropdown"
@@ -1049,9 +1008,7 @@ function AppleUI:_createDropdown(parent, config)
     return api
 end
 
----------------------------------------------------------------------
--- COMPONENT: SLIDER
----------------------------------------------------------------------
+
 function AppleUI:_createSlider(parent, config)
     config = config or {}
     local label    = config.Text or "Slider"
@@ -1179,9 +1136,7 @@ function AppleUI:_createSlider(parent, config)
     return api
 end
 
----------------------------------------------------------------------
--- COMPONENT: COLORPICKER
----------------------------------------------------------------------
+
 function AppleUI:_createColorpicker(parent, config)
     config = config or {}
     local label    = config.Text or "Color"
@@ -1375,7 +1330,7 @@ function AppleUI:_createColorpicker(parent, config)
     preview.MouseButton1Click:Connect(function()
         pickerOpen = not pickerOpen
         if pickerOpen then
-            -- Position the panel near the preview button in absolute screen coords
+
             local absPos = preview.AbsolutePosition
             local absSize = preview.AbsoluteSize
             pickerPanel.Position = UDim2.new(0, absPos.X + absSize.X + 8, 0, absPos.Y - 60)
@@ -1389,9 +1344,7 @@ function AppleUI:_createColorpicker(parent, config)
     return api
 end
 
----------------------------------------------------------------------
--- NOTIFICATION TOAST
----------------------------------------------------------------------
+
 function AppleUI:Notify(config)
     config = config or {}
     local title    = config.Title or "Notification"
@@ -1445,9 +1398,7 @@ function AppleUI:Notify(config)
     end)
 end
 
----------------------------------------------------------------------
--- KEYBIND: Toggle visibility
----------------------------------------------------------------------
+
 function AppleUI:BindToggle(keyCode)
     keyCode = keyCode or Enum.KeyCode.RightControl
     table.insert(self._connections, UserInputService.InputBegan:Connect(function(input, gp)
@@ -1458,7 +1409,5 @@ function AppleUI:BindToggle(keyCode)
     end))
 end
 
----------------------------------------------------------------------
--- RETURN MODULE
----------------------------------------------------------------------
+
 return AppleUI
