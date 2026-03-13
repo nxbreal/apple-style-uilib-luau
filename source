@@ -220,7 +220,7 @@ function Util.makeDraggable(topbar: GuiObject, mainFrame: GuiObject)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
             or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
-            Util.quickTween(mainFrame, 0.08, {
+            Util.quickTween(mainFrame, 0.22, {
                 Position = UDim2.new(
                     startPos.X.Scale, startPos.X.Offset + delta.X,
                     startPos.Y.Scale, startPos.Y.Offset + delta.Y
@@ -259,7 +259,7 @@ function AppleUI.new(config: {[string]: any}?)
     })
 
     -- Main container
-    self._main = Util.create("Frame", {
+    self._main = Util.create("CanvasGroup", {
         Name = "MainWindow",
         BackgroundColor3 = Tokens.BgPrimary,
         Size = self._config.Size,
@@ -437,7 +437,7 @@ function AppleUI:_buildSidebar()
     self._sidebar = Util.create("Frame", {
         Name = "Sidebar",
         BackgroundColor3 = Tokens.BgSecondary,
-        Size = UDim2.new(0, 150, 1, -48),
+        Size = UDim2.new(0, 150, 1, -38),
         Position = UDim2.new(0, 0, 0, 38),
         BorderSizePixel = 0,
         ClipsDescendants = true,
@@ -479,7 +479,7 @@ function AppleUI:_buildContentArea()
     self._content = Util.create("Frame", {
         Name = "Content",
         BackgroundColor3 = Tokens.BgPrimary,
-        Size = UDim2.new(1, -150, 1, -48),
+        Size = UDim2.new(1, -150, 1, -38),
         Position = UDim2.new(0, 150, 0, 38),
         BorderSizePixel = 0,
         ClipsDescendants = true,
