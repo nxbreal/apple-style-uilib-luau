@@ -751,6 +751,11 @@ function AppleUI:_createToggle(parent, config)
     local api = {}
     function api:Set(v) toggled = v; updateVisual(); pcall(callback, toggled) end
     function api:Get() return toggled end
+    
+    task.defer(function()
+        pcall(callback, toggled)
+    end)
+    
     return api
 end
 
@@ -854,6 +859,13 @@ function AppleUI:_createTextInput(parent, config)
     local api = {}
     function api:GetText() return textBox.Text end
     function api:SetText(t) textBox.Text = t end
+    
+    task.defer(function()
+        if textBox.Text ~= "" then
+            pcall(callback, textBox.Text)
+        end
+    end)
+
     return api
 end
 
@@ -1005,6 +1017,11 @@ function AppleUI:_createDropdown(parent, config)
         optionList.Size = UDim2.new(0.55, -12, 0, #items * 28 + 8)
         for i, item in ipairs(items) do makeOption(item, i) end
     end
+    
+    task.defer(function()
+        pcall(callback, selected)
+    end)
+    
     return api
 end
 
@@ -1133,6 +1150,11 @@ function AppleUI:_createSlider(parent, config)
         pcall(callback, value)
     end
     function api:Get() return value end
+    
+    task.defer(function()
+        pcall(callback, value)
+    end)
+    
     return api
 end
 
@@ -1341,6 +1363,11 @@ function AppleUI:_createColorpicker(parent, config)
     local api = {}
     function api:Set(c) hue, sat, val = c:ToHSV(); updateColor() end
     function api:Get() return currentColor end
+    
+    task.defer(function()
+        pcall(callback, currentColor)
+    end)
+
     return api
 end
 
