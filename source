@@ -224,6 +224,10 @@ function AppleUI.new(config: {[string]: any}?)
     config = config or {}
     local self = setmetatable({}, AppleUI)
 
+    self.Flags = {}
+    self._configFolder = "AppleUI_Configs"
+    self._configFile = nil
+
     self._config = {
         Title       = config.Title or "Apple UI",
         Size        = config.Size or UDim2.new(0, 520, 0, 380),
@@ -623,6 +627,53 @@ function AppleUI:_switchTab(tabData)
 end
 
 
+function AppleUI:InitConfig(folderName, defaultFileName)
+    self._configFolder = folderName or "AppleUI_Configs"
+    local fileName = defaultFileName or "config.json"
+    self._configFile = self._configFolder .. "/" .. fileName
+
+    local HttpService = game:GetService("HttpService")
+    local success, result = pcall(function()
+        if isfolder and isfolder(self._configFolder) then
+            if isfile and isfile(self._configFile) then
+                return HttpService:JSONDecode(readfile(self._configFile))
+            end
+        end
+        return nil
+    end)
+
+    if success and result and type(result) == "table" then
+        for k, v in pairs(result) do
+            if type(v) == "table" and v._isColor3 then
+                self.Flags[k] = Color3.new(v.r, v.g, v.b)
+            else
+                self.Flags[k] = v
+            end
+        end
+    end
+end
+
+
+function AppleUI:SaveConfig()
+    if not self._configFile then return end
+    local HttpService = game:GetService("HttpService")
+    pcall(function()
+        if makefolder and not isfolder(self._configFolder) then
+            makefolder(self._configFolder)
+        end
+        local saveTable = {}
+        for k, v in pairs(self.Flags) do
+            if typeof(v) == "Color3" then
+                saveTable[k] = {r = v.R, g = v.G, b = v.B, _isColor3 = true}
+            else
+                saveTable[k] = v
+            end
+        end
+        writefile(self._configFile, HttpService:JSONEncode(saveTable))
+    end)
+end
+
+
 function AppleUI:_createButton(parent, config)
     config = config or {}
     local btnText  = config.Text or "Button"
@@ -676,6 +727,16 @@ function AppleUI:_createToggle(parent, config)
     local default  = if config.Default ~= nil then config.Default else false
     local callback = config.Callback or function() end
     local order    = config.LayoutOrder or 999
+    
+    local flag     = config.Flag
+    local save     = config.Save ~= false
+
+    if flag and self.Flags[flag] ~= nil then
+        default = self.Flags[flag]
+    elseif flag and save then
+        self.Flags[flag] = default
+    end
+
     local toggled  = default
 
     local container = Util.create("Frame", {
@@ -745,11 +806,23 @@ function AppleUI:_createToggle(parent, config)
     clickBtn.MouseButton1Click:Connect(function()
         toggled = not toggled
         updateVisual()
+        if flag and save then
+            self.Flags[flag] = toggled
+            self:SaveConfig()
+        end
         pcall(callback, toggled)
     end)
 
     local api = {}
-    function api:Set(v) toggled = v; updateVisual(); pcall(callback, toggled) end
+    function api:Set(v)
+        toggled = v;
+        updateVisual();
+        if flag and save then
+            self.Flags[flag] = toggled
+            self:SaveConfig()
+        end
+        pcall(callback, toggled)
+    end
     function api:Get() return toggled end
     
     task.defer(function()
@@ -790,8 +863,18 @@ function AppleUI:_createTextInput(parent, config)
     config = config or {}
     local label       = config.Text or "Input"
     local placeholder = config.Placeholder or "Type here..."
+    local default     = config.Default or ""
     local callback    = config.Callback or function() end
     local order       = config.LayoutOrder or 999
+
+    local flag = config.Flag
+    local save = config.Save ~= false
+
+    if flag and self.Flags[flag] ~= nil then
+        default = self.Flags[flag]
+    elseif flag and save then
+        self.Flags[flag] = default
+    end
 
     local container = Util.create("Frame", {
         Name = "TextInputContainer",
@@ -831,7 +914,7 @@ function AppleUI:_createTextInput(parent, config)
 
     local textBox = Util.create("TextBox", {
         Name = "TextBox",
-        Text = "",
+        Text = default,
         PlaceholderText = placeholder,
         PlaceholderColor3 = Tokens.TextMuted,
         Font = Tokens.FontLight,
@@ -847,18 +930,26 @@ function AppleUI:_createTextInput(parent, config)
     })
 
     textBox.FocusLost:Connect(function(enterPressed)
-        if enterPressed then pcall(callback, textBox.Text) end
+        Util.quickTween(inputFrame, 0.2, { BackgroundColor3 = Tokens.BgPrimary })
+        if flag and save then
+            self.Flags[flag] = textBox.Text
+            self:SaveConfig()
+        end
+        pcall(callback, textBox.Text)
     end)
     textBox.Focused:Connect(function()
         Util.quickTween(inputFrame, 0.2, { BackgroundColor3 = Tokens.BgSecondary })
     end)
-    textBox.FocusLost:Connect(function()
-        Util.quickTween(inputFrame, 0.2, { BackgroundColor3 = Tokens.BgPrimary })
-    end)
 
     local api = {}
     function api:GetText() return textBox.Text end
-    function api:SetText(t) textBox.Text = t end
+    function api:SetText(t)
+        textBox.Text = t
+        if flag and save then
+            self.Flags[flag] = t
+            self:SaveConfig()
+        end
+    end
     
     task.defer(function()
         if textBox.Text ~= "" then
@@ -889,6 +980,16 @@ function AppleUI:_createDropdown(parent, config)
     local default  = config.Default or items[1]
     local callback = config.Callback or function() end
     local order    = config.LayoutOrder or 999
+    
+    local flag     = config.Flag
+    local save     = config.Save ~= false
+
+    if flag and self.Flags[flag] ~= nil then
+        default = self.Flags[flag]
+    elseif flag and save then
+        self.Flags[flag] = default
+    end
+
     local isOpen   = false
     local selected = default
 
@@ -975,6 +1076,10 @@ function AppleUI:_createDropdown(parent, config)
             selectedBtn.Text = item .. "  v"
             isOpen = false
             optionList.Visible = false
+            if flag and save then
+                self.Flags[flag] = selected
+                self:SaveConfig()
+            end
             pcall(callback, item)
         end)
     end
@@ -1007,7 +1112,15 @@ function AppleUI:_createDropdown(parent, config)
     end))
 
     local api = {}
-    function api:Set(v) selected = v; selectedBtn.Text = v .. "  v"; pcall(callback, v) end
+    function api:Set(v)
+        selected = v
+        selectedBtn.Text = v .. "  v"
+        if flag and save then
+            self.Flags[flag] = selected
+            self:SaveConfig()
+        end
+        pcall(callback, v)
+    end
     function api:Get() return selected end
     function api:Refresh(newItems)
         for _, c in ipairs(optionList:GetChildren()) do
@@ -1035,6 +1148,16 @@ function AppleUI:_createSlider(parent, config)
     local callback = config.Callback or function() end
     local order    = config.LayoutOrder or 999
     local suffix   = config.Suffix or ""
+    
+    local flag     = config.Flag
+    local save     = config.Save ~= false
+
+    if flag and self.Flags[flag] ~= nil then
+        default = self.Flags[flag]
+    elseif flag and save then
+        self.Flags[flag] = default
+    end
+
     local value    = default
 
     local container = Util.create("Frame", {
@@ -1117,6 +1240,10 @@ function AppleUI:_createSlider(parent, config)
         valLabel.Text = tostring(value) .. suffix
         trackFill.Size = UDim2.new(rel, 0, 1, 0)
         knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        if flag and save then
+            self.Flags[flag] = value
+            self:SaveConfig()
+        end
         pcall(callback, value)
     end
 
@@ -1147,6 +1274,10 @@ function AppleUI:_createSlider(parent, config)
         valLabel.Text = tostring(math.floor(value)) .. suffix
         trackFill.Size = UDim2.new(rel, 0, 1, 0)
         knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        if flag and save then
+            self.Flags[flag] = value
+            self:SaveConfig()
+        end
         pcall(callback, value)
     end
     function api:Get() return value end
@@ -1165,6 +1296,16 @@ function AppleUI:_createColorpicker(parent, config)
     local default  = config.Default or Color3.fromRGB(0, 122, 255)
     local callback = config.Callback or function() end
     local order    = config.LayoutOrder or 999
+    
+    local flag     = config.Flag
+    local save     = config.Save ~= false
+
+    if flag and self.Flags[flag] ~= nil then
+        default = self.Flags[flag]
+    elseif flag and save then
+        self.Flags[flag] = default
+    end
+
     local currentColor = default
     local pickerOpen = false
     local hue, sat, val = default:ToHSV()
@@ -1311,6 +1452,10 @@ function AppleUI:_createColorpicker(parent, config)
         svCursor.Position = UDim2.new(sat, 0, 1 - val, 0)
         hueCursor.Position = UDim2.new(0.5, 0, hue, 0)
         hexLabel.Text = Util.color3ToHex(currentColor)
+        if flag and save then
+            self.Flags[flag] = currentColor
+            self:SaveConfig()
+        end
         pcall(callback, currentColor)
     end
 
@@ -1361,7 +1506,10 @@ function AppleUI:_createColorpicker(parent, config)
     end)
 
     local api = {}
-    function api:Set(c) hue, sat, val = c:ToHSV(); updateColor() end
+    function api:Set(c) 
+        hue, sat, val = c:ToHSV(); 
+        updateColor() 
+    end
     function api:Get() return currentColor end
     
     task.defer(function()
